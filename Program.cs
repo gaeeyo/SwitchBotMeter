@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices.WindowsRuntime;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Enumeration;
@@ -24,31 +21,34 @@ namespace SwitbotThermometerApp
         {
             int limit = 1;
             int timeout = 120;
-            Commands cmd = Commands.GetTemp;
+            Commands command = Commands.GetTemp;
 
             for (var j = 0; j < args.Length; j++)
             {
                 switch (args[j])
                 {
                     case "--limit":
-                        if (j + 1 >= args.Length) throw new Exception("-limit のパラメータが足りません");
+                        if (j + 1 >= args.Length) throw new Exception("--limit のパラメータが足りません");
                         j++;
                         limit = int.Parse(args[j]);
                         break;
                     case "--timeout":
+                        if (j + 1 >= args.Length) throw new Exception("--timeout のパラメータがありません");
+                        j++;
+                        timeout = int.Parse(args[j]);
                         break;
                     case "--list":
                     case "-l":
-                        cmd = Commands.List;
+                        command = Commands.List;
                         break;
                     case "--help":
                     case "-h":
-                        cmd = Commands.Help;
+                        command = Commands.Help;
                         break;
                 }
             }
 
-            switch (cmd)
+            switch (command)
             {
                 case Commands.GetTemp:
                     GetTemp(limit, timeout);
@@ -64,7 +64,7 @@ namespace SwitbotThermometerApp
 
         private static void Help()
         {
-            Console.WriteLine("Usage: SwitchbotThermometerApp [options...]\n"
+            Console.WriteLine("Usage: SwitchBotMeter [options...]\n"
                 + " Options:\n"
                 + "     --limit N    Limit results (default: 1, unlimited: 0)\n"
                 + "  -t --timeout N  Timeout seconds(default: 120, unlimited: 0)\n"
@@ -122,7 +122,8 @@ namespace SwitbotThermometerApp
                             var data = ds.Data.ToArray(2, 6);
                             double temp = ((data[3] & 0x0f) / 10.0 + (data[4] & 0x7f)) * ((data[4] & 0x80) != 0 ? 1 : -1);
                             int humidity = data[5] & 0x7f;
-                            Console.WriteLine($"{args.BluetoothAddress:X} {temp:f1} {humidity:d}");
+                            int battery = data[2] & 0x7f;
+                            Console.WriteLine($"{args.BluetoothAddress:X} {temp:f1} {humidity:d} {battery:d}");
                             if (limit > 0) countdownEvent.Signal();
                         }
                     }
