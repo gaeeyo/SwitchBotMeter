@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Enumeration;
+using SwitchBotUtil;
 
 namespace SwitbotThermometerApp
 {
@@ -19,6 +22,7 @@ namespace SwitbotThermometerApp
 
         static void Main(string[] args)
         {
+
             int limit = 1;
             int timeout = 120;
             Commands command = Commands.GetTemp;
@@ -99,22 +103,22 @@ namespace SwitbotThermometerApp
             deviceWatcher.Stop();
         }
 
+        private static void PrintTemp(ulong address, double temp, int humidity, int battery, String device)
+        {
+            Console.WriteLine($"{address:X} {temp:f1} {humidity:d} {battery:d} {device}");
+        }
+
         private static void GetTemp(int limit, int timeout)
         {
-            var switchBotMeterThUuid = new Guid("cba20d00-224d-11e6-9fb8-0002a5d5c51b");
-
-            var filter = new BluetoothLEAdvertisementFilter();
-            filter.Advertisement = new BluetoothLEAdvertisement();
-            filter.Advertisement.ServiceUuids.Add(switchBotMeterThUuid);
-
-            var watcher = new BluetoothLEAdvertisementWatcher(filter);
+            var watcher = new BluetoothLEAdvertisementWatcher();
             var countdownEvent = new CountdownEvent(limit > 0 ? limit : 1);
+            var outdoorMeters = new Dictionary<ulong, byte[]>();
 
             watcher.Received += (sender, args) =>
             {
-                if (args.Advertisement.ServiceUuids.Contains(switchBotMeterThUuid))
+                if (args.Advertisement.ServiceUuids.Contains(Uuids.meter))
                 {
-
+                    // 初代の温度湿度計
                     foreach (var ds in args.Advertisement.DataSections)
                     {
                         if (ds.DataType == 22 && ds.Data.Length == 8)
@@ -123,8 +127,40 @@ namespace SwitbotThermometerApp
                             double temp = ((data[3] & 0x0f) / 10.0 + (data[4] & 0x7f)) * ((data[4] & 0x80) != 0 ? 1 : -1);
                             int humidity = data[5] & 0x7f;
                             int battery = data[2] & 0x7f;
-                            Console.WriteLine($"{args.BluetoothAddress:X} {temp:f1} {humidity:d} {battery:d}");
+
+                            PrintTemp(args.BluetoothAddress, temp, humidity, battery, "Meter");
                             if (limit > 0) countdownEvent.Signal();
+                        }
+                    }
+                }
+                else
+                {
+                    if (outdoorMeters.TryGetValue(args.BluetoothAddress, out var serviceData))
+                    {
+                        var mdl = args.Advertisement.GetManufacturerDataByCompanyId(SwitchBot.companyId);
+                        if (mdl.Count == 1)
+                        {
+                            var md = mdl[0].Data.ToArray();
+                            double temp = ((md[9] & 0x7f) + ((md[8] & 0x0f) / 10.0)) * ((md[9] & 0x80) == 0 ? -1 : 1);
+                            int humidity = (md[10] & 0x7f);
+                            int battery = serviceData[4] & 0x7f;
+                            PrintTemp(args.BluetoothAddress, temp, humidity, battery, "OutdoorMeter");
+                            if (limit > 0) countdownEvent.Signal();
+                        }
+                    }
+                    else
+                    {
+                        var sdl = args.Advertisement.GetSectionsByType(0x16);
+                        foreach (var sd in sdl)
+                        {
+                            if (sd.Data.GetByte(0) == 0x3d && sd.Data.GetByte(1) == 0xfd)
+                            {
+                                if ((sd.Data.GetByte(2) & 0x7f) == SBDeviceTypes.OutdoorMeter)
+                                {
+                                    outdoorMeters[args.BluetoothAddress] = sd.Data.ToArray();
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
