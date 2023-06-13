@@ -14,6 +14,12 @@ Linux のツールはあったけど、Windows 用が見つけられなかった
 - Windows 10 Build 19041
 - .NET 6.0 (Windows)
 
+# ビルド
+
+```
+dotnet publish --configuration Release
+```
+
 # 使い方
 
 起動すると、空白切りでデバイスのアドレス、温度、湿度、バッテリー残量(%)、デバイスの種類が表示されます。
