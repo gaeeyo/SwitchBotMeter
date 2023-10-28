@@ -33,6 +33,7 @@ dotnet publish --configuration Release
 C:\> SwitchBotMeter
 FEDBB31721C2 27.8 56 100 Meter
 F3AE13927590 22.8 77 100 OutdoorMeter
+FEF7187D856A 26.4 44 100 MeterPlus
 ```
 
 タイムアウトを10秒に設定して取得。

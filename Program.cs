@@ -112,7 +112,7 @@ namespace SwitbotThermometerApp
         {
             var watcher = new BluetoothLEAdvertisementWatcher();
             var countdownEvent = new CountdownEvent(limit > 0 ? limit : 1);
-            var outdoorMeters = new Dictionary<ulong, byte[]>();
+            var meters = new Dictionary<ulong, byte[]>();
 
             watcher.Received += (sender, args) =>
             {
@@ -135,7 +135,7 @@ namespace SwitbotThermometerApp
                 }
                 else
                 {
-                    if (outdoorMeters.TryGetValue(args.BluetoothAddress, out var serviceData))
+                    if (meters.TryGetValue(args.BluetoothAddress, out var serviceData))
                     {
                         var mdl = args.Advertisement.GetManufacturerDataByCompanyId(SwitchBot.companyId);
                         if (mdl.Count == 1)
@@ -144,7 +144,8 @@ namespace SwitbotThermometerApp
                             double temp = ((md[9] & 0x7f) + ((md[8] & 0x0f) / 10.0)) * ((md[9] & 0x80) == 0 ? -1 : 1);
                             int humidity = (md[10] & 0x7f);
                             int battery = serviceData[4] & 0x7f;
-                            PrintTemp(args.BluetoothAddress, temp, humidity, battery, "OutdoorMeter");
+                            int deviceType = serviceData[2] & 0x7f;
+                            PrintTemp(args.BluetoothAddress, temp, humidity, battery, GetDeviceTypeName(deviceType));
                             if (limit > 0) countdownEvent.Signal();
                         }
                     }
@@ -155,10 +156,15 @@ namespace SwitbotThermometerApp
                         {
                             if (sd.Data.GetByte(0) == 0x3d && sd.Data.GetByte(1) == 0xfd)
                             {
-                                if ((sd.Data.GetByte(2) & 0x7f) == SBDeviceTypes.OutdoorMeter)
+                                var deviceType = (sd.Data.GetByte(2) & 0x7f);
+                                switch (deviceType)
                                 {
-                                    outdoorMeters[args.BluetoothAddress] = sd.Data.ToArray();
-                                    break;
+                                    case SBDeviceTypes.OutdoorMeter:
+                                    case SBDeviceTypes.MeterPlus:
+                                        meters[args.BluetoothAddress] = sd.Data.ToArray();
+                                        break;
+                                    default:
+                                        break;
                                 }
                             }
                         }
@@ -176,6 +182,21 @@ namespace SwitbotThermometerApp
                 countdownEvent.Wait();
             }
             watcher.Stop();
+        }
+
+        static String GetDeviceTypeName(int value)
+        {
+            switch (value)
+            {
+                case SBDeviceTypes.Bot:
+                    return "Bot";
+                case SBDeviceTypes.Meter:
+                    return "Meter";
+                case SBDeviceTypes.MeterPlus:
+                    return "MeterPlus";
+                default:
+                    return "notImplemented";
+            }
         }
     }
 }
